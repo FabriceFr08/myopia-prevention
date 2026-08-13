@@ -8,7 +8,10 @@
     "scheme": "myopiaprevention",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Cette application a besoin d'accéder à la caméra pour détecter votre visage."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +20,11 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "package": "com.fabricefr08.myopiaprevention"
     },
     "web": {
       "output": "static",
@@ -47,7 +54,7 @@
             "minSdkVersion": 26
           }
         }
-      ],  
+      ],
       "react-native-vision-camera",
       "expo-sqlite",
       "expo-sharing",
@@ -56,6 +63,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "43956b41-f9fa-4398-97b1-40e9632d0943"
+      }
     }
   }
 }
