@@ -16,6 +16,7 @@ import database, {
   initDatabase,
   insertReading,
 } from "../database/database";
+import { useSessionTimer } from "../hooks/use-session-timer";
 
 const faceDetectionOptions: FaceDetectionOptions = {
   performanceMode: "fast",
@@ -69,6 +70,17 @@ export default function Index() {
   const [luminosityLux, setLuminosityLux] = useState<number | null>(null);
   const currentLuminosity = useRef<number | null>(null);
 
+  const [hasFaceNow, setHasFaceNow] = useState(false);
+  const {
+    elapsedSeconds,
+    secondsUntilPause,
+    pausesSuggested,
+    pausesConfirmed,
+    showPausePrompt,
+    confirmPause,
+    dismissPause,
+  } = useSessionTimer(hasFaceNow);
+
   useEffect(() => {
     let subscription: any = null;
 
@@ -112,6 +124,7 @@ export default function Index() {
 
   function handleFacesDetection(faces: Face[]) {
     setFaceCount(faces.length);
+    setHasFaceNow(faces.length > 0);
 
     const now = Date.now();
     const hasFace = faces.length > 0;
@@ -185,6 +198,26 @@ export default function Index() {
           Luminosité :{" "}
           {luminosityLux !== null ? `${Math.round(luminosityLux)} lux` : "—"}
         </Text>
+
+        <Text style={styles.debugText}>
+          Prochaine pause dans : {Math.floor(secondsUntilPause / 60)}:
+          {(secondsUntilPause % 60).toString().padStart(2, "0")}
+        </Text>
+
+        {showPausePrompt && (
+          <View style={styles.pausePanel}>
+            <Text style={styles.pauseTitle}>Pause visuelle</Text>
+            <Text style={styles.pauseText}>
+              Regarde au loin pendant 20 secondes, puis confirme.
+            </Text>
+            <Pressable style={styles.button} onPress={confirmPause}>
+              <Text style={styles.buttonText}>J'ai fait ma pause</Text>
+            </Pressable>
+            <Pressable style={styles.buttonSecondary} onPress={dismissPause}>
+              <Text style={styles.buttonSecondaryText}>Ignorer</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
 
       {isCalibrating ? (
@@ -260,4 +293,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   buttonText: { color: "white", fontWeight: "600" },
+
+  pausePanel: {
+    position: "absolute",
+    top: "40%",
+    left: 24,
+    right: 24,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    padding: 20,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  pauseTitle: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  pauseText: {
+    color: "white",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  buttonSecondary: { paddingVertical: 8 },
+  buttonSecondaryText: { color: "#94A3B8", fontSize: 13 },
 });

@@ -71,10 +71,12 @@ export function endSession(
   sessionId: number,
   endedAt: string,
   durationSeconds: number,
+  pausesSuggested: number,
+  pausesConfirmed: number,
 ) {
   db.runSync(
-    "UPDATE sessions SET ended_at = ?, duration_seconds = ? WHERE id = ?;",
-    [endedAt, durationSeconds, sessionId],
+    "UPDATE sessions SET ended_at = ?, duration_seconds = ?, pauses_suggested = ?, pauses_confirmed = ? WHERE id = ?;",
+    [endedAt, durationSeconds, pausesSuggested, pausesConfirmed, sessionId],
   );
 }
 
