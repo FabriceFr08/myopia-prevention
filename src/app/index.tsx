@@ -9,6 +9,12 @@ import {
   Face,
   FaceDetectionOptions,
 } from "react-native-vision-camera-face-detector";
+import database, {
+  createSession,
+  endSession,
+  initDatabase,
+  insertReading,
+} from "../database/database";
 
 const faceDetectionOptions: FaceDetectionOptions = {
   performanceMode: "fast",
@@ -37,6 +43,13 @@ function calculateDistanceCm(
   return distanceMm / 10;
 }
 
+function debugPrintReadings() {
+  const rows = database.getAllSync(
+    "SELECT * FROM readings ORDER BY id DESC LIMIT 10;",
+  );
+  console.log("Dernières lectures:", JSON.stringify(rows, null, 2));
+}
+
 export default function Index() {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice("front");
@@ -48,6 +61,27 @@ export default function Index() {
   const [calibrationInputCm, setCalibrationInputCm] = useState("30");
   const currentPixelDistance = useRef<number>(0);
 
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const sessionStartTime = useRef<number>(0);
+  const lastReadingTime = useRef<number>(0);
+
+  useEffect(() => {
+    initDatabase();
+    const startedAt = new Date().toISOString();
+    sessionStartTime.current = Date.now();
+    const id = createSession(startedAt);
+    setSessionId(id);
+
+    return () => {
+      if (id) {
+        const durationSeconds = Math.round(
+          (Date.now() - sessionStartTime.current) / 1000,
+        );
+        endSession(id, new Date().toISOString(), durationSeconds);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!hasPermission) requestPermission();
   }, [hasPermission]);
@@ -55,25 +89,37 @@ export default function Index() {
   function handleFacesDetection(faces: Face[]) {
     setFaceCount(faces.length);
 
-    if (faces.length === 0) {
-      setDistanceCm(null);
-      return;
-    }
+    const now = Date.now();
+    const hasFace = faces.length > 0;
+    let currentDistance: number | null = null;
 
-    const face = faces[0];
-    const landmarks = face?.landmarks;
-
-    if (landmarks?.LEFT_EYE && landmarks?.RIGHT_EYE) {
-      const pixelDistance = getPixelDistance(
-        landmarks.LEFT_EYE,
-        landmarks.RIGHT_EYE,
-      );
-      currentPixelDistance.current = pixelDistance;
-      setDistanceCm(
-        Math.round(calculateDistanceCm(pixelDistance, focalLengthPx)),
-      );
+    if (hasFace) {
+      const face = faces[0];
+      const landmarks = face?.landmarks;
+      if (landmarks?.LEFT_EYE && landmarks?.RIGHT_EYE) {
+        const pixelDistance = getPixelDistance(
+          landmarks.LEFT_EYE,
+          landmarks.RIGHT_EYE,
+        );
+        currentPixelDistance.current = pixelDistance;
+        currentDistance = Math.round(
+          calculateDistanceCm(pixelDistance, focalLengthPx),
+        );
+        setDistanceCm(currentDistance);
+      }
     } else {
       setDistanceCm(null);
+    }
+
+    // Throttling : une écriture toutes les 2.5 secondes maximum
+    if (sessionId && now - lastReadingTime.current > 2500) {
+      lastReadingTime.current = now;
+      insertReading(
+        sessionId,
+        new Date().toISOString(),
+        currentDistance,
+        hasFace,
+      );
     }
   }
 
