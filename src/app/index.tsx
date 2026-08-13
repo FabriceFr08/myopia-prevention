@@ -1,3 +1,4 @@
+import { LightSensor } from "expo-sensors";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
@@ -65,6 +66,29 @@ export default function Index() {
   const sessionStartTime = useRef<number>(0);
   const lastReadingTime = useRef<number>(0);
 
+  const [luminosityLux, setLuminosityLux] = useState<number | null>(null);
+  const currentLuminosity = useRef<number | null>(null);
+
+  useEffect(() => {
+    let subscription: any = null;
+
+    LightSensor.isAvailableAsync().then((available) => {
+      if (available) {
+        LightSensor.setUpdateInterval(1000); // une lecture par seconde
+        subscription = LightSensor.addListener((data) => {
+          setLuminosityLux(data.illuminance);
+          currentLuminosity.current = data.illuminance;
+        });
+      } else {
+        console.log("Capteur de luminosité non disponible sur cet appareil");
+      }
+    });
+
+    return () => {
+      subscription?.remove();
+    };
+  }, []);
+
   useEffect(() => {
     initDatabase();
     const startedAt = new Date().toISOString();
@@ -118,6 +142,7 @@ export default function Index() {
         sessionId,
         new Date().toISOString(),
         currentDistance,
+        currentLuminosity.current,
         hasFace,
       );
     }
@@ -155,6 +180,10 @@ export default function Index() {
         <Text style={styles.debugText}>Visages détectés : {faceCount}</Text>
         <Text style={styles.debugText}>
           Distance : {distanceCm !== null ? `${distanceCm} cm` : "—"}
+        </Text>
+        <Text style={styles.debugText}>
+          Luminosité :{" "}
+          {luminosityLux !== null ? `${Math.round(luminosityLux)} lux` : "—"}
         </Text>
       </View>
 

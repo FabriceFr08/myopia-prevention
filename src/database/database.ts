@@ -82,11 +82,12 @@ export function insertReading(
   sessionId: number,
   timestamp: string,
   distanceCm: number | null,
+  luminosityLux: number | null,
   faceDetected: boolean,
 ) {
   db.runSync(
-    "INSERT INTO readings (session_id, timestamp, distance_cm, face_detected) VALUES (?, ?, ?, ?);",
-    [sessionId, timestamp, distanceCm, faceDetected ? 1 : 0],
+    "INSERT INTO readings (session_id, timestamp, distance_cm, luminosity_lux, face_detected) VALUES (?, ?, ?, ?, ?);",
+    [sessionId, timestamp, distanceCm, luminosityLux, faceDetected ? 1 : 0],
   );
 }
 
