@@ -93,4 +93,128 @@ export function insertReading(
   );
 }
 
+export function computeDailySummary(date: string) {
+  // date au format 'YYYY-MM-DD'
+  const startOfDay = `${date}T00:00:00.000Z`;
+  const endOfDay = `${date}T23:59:59.999Z`;
+
+  const sessionsRows = db.getAllSync(
+    `SELECT * FROM sessions WHERE started_at >= ? AND started_at <= ?;`,
+    [startOfDay, endOfDay],
+  ) as any[];
+
+  const readingsRows = db.getAllSync(
+    `SELECT r.* FROM readings r
+     JOIN sessions s ON r.session_id = s.id
+     WHERE s.started_at >= ? AND s.started_at <= ?;`,
+    [startOfDay, endOfDay],
+  ) as any[];
+
+  const totalScreenTime = sessionsRows.reduce(
+    (sum, s) => sum + (s.duration_seconds || 0),
+    0,
+  );
+
+  const distances = readingsRows
+    .filter((r) => r.distance_cm != null)
+    .map((r) => r.distance_cm);
+  const avgDistance = distances.length
+    ? distances.reduce((a, b) => a + b, 0) / distances.length
+    : null;
+  const pctBelow25 = distances.length
+    ? (distances.filter((d) => d < 25).length / distances.length) * 100
+    : null;
+
+  const luminosities = readingsRows
+    .filter((r) => r.luminosity_lux != null)
+    .map((r) => r.luminosity_lux);
+  const avgLuminosity = luminosities.length
+    ? luminosities.reduce((a, b) => a + b, 0) / luminosities.length
+    : null;
+  const pctLowLight = luminosities.length
+    ? (luminosities.filter((l) => l < 100).length / luminosities.length) * 100
+    : null;
+  const pctNaturalLight = luminosities.length
+    ? (luminosities.filter((l) => l > 1000).length / luminosities.length) * 100
+    : null;
+
+  const nocturnalCount = sessionsRows.filter((s) => s.is_nocturnal).length;
+  const longestSession = sessionsRows.reduce(
+    (max, s) => Math.max(max, s.duration_seconds || 0),
+    0,
+  );
+
+  const totalSuggested = sessionsRows.reduce(
+    (sum, s) => sum + (s.pauses_suggested || 0),
+    0,
+  );
+  const totalConfirmed = sessionsRows.reduce(
+    (sum, s) => sum + (s.pauses_confirmed || 0),
+    0,
+  );
+  const pauseAdherence =
+    totalSuggested > 0 ? (totalConfirmed / totalSuggested) * 100 : null;
+
+  db.runSync(
+    `INSERT OR REPLACE INTO daily_summary
+     (date, total_screen_time_seconds, avg_distance_cm, pct_time_below_25cm, avg_luminosity_lux,
+      pct_time_low_light, pct_time_natural_light_estimated, nocturnal_sessions_count,
+      longest_continuous_session_seconds, pause_adherence_rate)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    [
+      date,
+      totalScreenTime,
+      avgDistance,
+      pctBelow25,
+      avgLuminosity,
+      pctLowLight,
+      pctNaturalLight,
+      nocturnalCount,
+      longestSession,
+      pauseAdherence,
+    ],
+  );
+}
+
+export function getDailySummaries(daysBack: number) {
+  const since = new Date();
+  since.setDate(since.getDate() - daysBack);
+  const sinceStr = since.toISOString().split("T")[0];
+
+  return db.getAllSync(
+    `SELECT * FROM daily_summary WHERE date >= ? ORDER BY date DESC;`,
+    [sinceStr],
+  ) as any[];
+}
+
+export function getReportAggregates(daysBack: number) {
+  const summaries = getDailySummaries(daysBack);
+  if (summaries.length === 0) return null;
+
+  const avg = (key: string) => {
+    const vals = summaries
+      .map((s: any) => s[key])
+      .filter((v: any) => v != null);
+    return vals.length
+      ? vals.reduce((a: number, b: number) => a + b, 0) / vals.length
+      : null;
+  };
+
+  return {
+    avgDistanceCm: avg("avg_distance_cm"),
+    avgPctBelow25: avg("pct_time_below_25cm"),
+    totalScreenTimeHours:
+      summaries.reduce(
+        (sum: number, s: any) => sum + (s.total_screen_time_seconds || 0),
+        0,
+      ) / 3600,
+    totalNocturnalSessions: summaries.reduce(
+      (sum: number, s: any) => sum + (s.nocturnal_sessions_count || 0),
+      0,
+    ),
+    avgPauseAdherence: avg("pause_adherence_rate"),
+    dailySummaries: summaries,
+  };
+}
+
 export default db;

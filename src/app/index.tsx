@@ -1,5 +1,8 @@
 import { LightSensor } from "expo-sensors";
 import { useEffect, useRef, useState } from "react";
+import { computeDailySummary } from "../database/database";
+import { generateAndShareReport } from "../utils/generate-report";
+
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   useCameraDevice,
@@ -50,6 +53,14 @@ function debugPrintReadings() {
     "SELECT * FROM readings ORDER BY id DESC LIMIT 10;",
   );
   console.log("Dernières lectures:", JSON.stringify(rows, null, 2));
+}
+
+async function handleExportReport() {
+  try {
+    await generateAndShareReport(30);
+  } catch (e) {
+    console.log("Erreur génération rapport:", e);
+  }
 }
 
 export default function Index() {
@@ -113,7 +124,15 @@ export default function Index() {
         const durationSeconds = Math.round(
           (Date.now() - sessionStartTime.current) / 1000,
         );
-        endSession(id, new Date().toISOString(), durationSeconds);
+        endSession(
+          id,
+          new Date().toISOString(),
+          durationSeconds,
+          pausesSuggested,
+          pausesConfirmed,
+        );
+        const today = new Date().toISOString().split("T")[0];
+        computeDailySummary(today);
       }
     };
   }, []);
@@ -180,6 +199,14 @@ export default function Index() {
     );
   }
 
+  async function handleExportReport() {
+    try {
+      await generateAndShareReport(30);
+    } catch (e) {
+      console.log("Erreur génération rapport:", e);
+    }
+  }
+
   return (
     <View style={styles.container}>
       <Camera
@@ -244,6 +271,10 @@ export default function Index() {
         >
           <Text style={styles.buttonText}>Calibrer</Text>
         </Pressable>
+
+        //<Pressable style={styles.calibrateButton} onPress={handleExportReport}>
+        //  <Text style={styles.buttonText}>Exporter le rapport</Text>
+        //</Pressable>
       )}
     </View>
   );
